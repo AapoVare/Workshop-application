@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkbox Questions</title>
+</head>
+<body>
+    <h1>Checkbox Questions</h1>
+    <form id="checkboxQuestionsForm">
+        <div id="questionsContainer"></div>
+        <button type="button" onclick="submitAnswers()">Submit Answers</button>
+    </form>
+
+    <script>
+        let questions;  // Declare the questions variable globally
+
+        // Fetch checkbox questions from the backend
+        fetch('http://127.0.0.1:5000/api/checkbox_questions')
+            .then(response => response.json())
+            .then(data => {
+                questions = data;  // Assign the fetched data to the questions variable
+                const questionsContainer = document.getElementById("questionsContainer");
+
+                // Create checkboxes for each question with default options
+                Object.keys(questions).forEach(questionID => {
+                    const questionData = questions[questionID];
+
+                    const questionLabel = document.createElement("label");
+                    questionLabel.innerText = questionData.question;
+
+                    questionsContainer.appendChild(questionLabel);
+
+                    // Create checkboxes for answer options
+                    questionData.options.forEach(option => {
+                        const checkbox = document.createElement("input");
+                        checkbox.type = "checkbox";
+                        checkbox.name = `checkbox_question_${questionID}`;
+                        checkbox.value = option;
+
+                        const optionLabel = document.createElement("label");
+                        optionLabel.innerText = option;
+
+                        questionsContainer.appendChild(checkbox);
+                        questionsContainer.appendChild(optionLabel);
+                        questionsContainer.appendChild(document.createElement("br"));
+                    });
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching questions:', error);
+            });
+
+        function submitAnswers() {
+            // Get selected answers
+            const answerData = {};
+
+            Object.keys(questions).forEach(questionID => {
+                const selectedCheckboxes = document.querySelectorAll(`input[name="checkbox_question_${questionID}"]:checked`);
+                const selectedValues = Array.from(selectedCheckboxes).map(checkbox => checkbox.value);
+                answerData[questionID] = selectedValues;
+            });
+
+            // Send answer data to the backend
+            fetch('http://127.0.0.1:5000/api/submit_checkbox_answers', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(answerData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message || data.error);
+
+                if (!data.error) {
+                    // Clear selected options after successful submission
+                    Object.keys(questions).forEach(questionID => {
+                        const checkboxes = document.querySelectorAll(`input[name="checkbox_question_${questionID}"]:checked`);
+                        checkboxes.forEach(checkbox => (checkbox.checked = false));
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error submitting answers:', error);
+            });
+        }
+    </script>
+</body>
+</html>
