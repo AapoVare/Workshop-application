@@ -18,7 +18,7 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
-csrf = CSRFProtect(app)
+csrf = CSRFProtect()
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
 # MySQL Configuration
@@ -89,6 +89,7 @@ def load_user(user_id):
     return None  # Return None if user not found or an error occurred
 
 @app.route('/api/login', methods=['POST'])
+@csrf.protect
 def login():
     try:
         data = request.get_json()
@@ -122,8 +123,9 @@ def login():
     except Exception as e:
         return jsonify({"error": str(e)})
     
-@csrf.exempt   
+
 @app.route('/api/create_user', methods=['POST'])
+@csrf.protect
 def create_user():
     try:
         data = request.get_json()
@@ -156,7 +158,10 @@ def create_user():
 
         cursor.close()
 
-        return jsonify({"message": "User created successfully"})
+        # Generate CSRF token and include it in the response headers
+        csrf_token = generate_csrf()
+        response = jsonify({"message": "User created successfully"})
+        response.headers['X-CSRFToken'] = csrf_token
 
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -184,6 +189,7 @@ def get_checkbox_questions():
 
 # Submit radio answers to the database
 @app.route('/api/submit_radio_answers', methods=['POST'])
+@csrf.protect
 def submit_radio_answers():
     try:
         data = request.get_json()
@@ -209,6 +215,7 @@ def submit_radio_answers():
     
 # Submit checkbox answers to the database
 @app.route('/api/submit_checkbox_answers', methods=['POST'])
+@csrf.protect
 def submit_checkbox_answers():
     try:
         data = request.get_json()
@@ -301,10 +308,11 @@ def get_user_answers():
         return jsonify({"error": str(e)})
 
 
-@app.errorhandler(CSRFError)
-def handle_csrf_error(e):
-    return jsonify({"error": "CSRF token is missing or invalid"}), 400
 
 if __name__ == '__main__':
     csrf.init_app(app)
     app.run(debug=True)
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    return jsonify({"error": "CSRF token is missing or invalid"}), 400
