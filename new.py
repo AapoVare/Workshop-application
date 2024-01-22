@@ -3,17 +3,23 @@ import mysql.connector
 from mysql.connector import errorcode
 from datetime import datetime
 from flask_cors import CORS  # Import CORS
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from dotenv import load_dotenv
+import os
 import json
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 # MySQL Configuration
 db_config = {
-    'host': '',
-    'user': '',
-    'password': '',
-    'database': ''
+    'host': os.getenv('DB_HOST'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'database': os.getenv('DB_DATABASE')
 }
 
 try:
@@ -43,6 +49,73 @@ finally:
     if 'cnx' in locals():
         cnx.close()
 
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'  # Specify the login view endpoint
+
+class User(UserMixin):
+    def __init__(self, user_id):
+        self.id = user_id
+
+@login_manager.user_loader
+def load_user(user_id):
+    try:
+        cnx = mysql.connector.connect(**db_config)
+        cursor = cnx.cursor()
+
+        # Query the user by ID from the User table
+        query = "SELECT * FROM User WHERE ID = %s"
+        cursor.execute(query, (user_id,))
+        user_data = cursor.fetchone()
+
+        if user_data:
+            user = User(user_data[0])  # Assuming the first column is the user ID
+            cursor.close()
+            return user
+
+    except Exception as e:
+        print(str(e))
+
+    finally:
+        if 'cnx' in locals():
+            cnx.close()
+
+    return None  # Return None if user not found or an error occurred
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+
+        cnx = mysql.connector.connect(**db_config)
+        cursor = cnx.cursor()
+
+        # Check if the username exists in the database
+        check_user_query = "SELECT ID, Password FROM User WHERE Username = %s"
+        cursor.execute(check_user_query, (data['username'],))
+        user_data = cursor.fetchone()
+
+        if not user_data:
+            # User not found, return authentication failure status
+            cursor.close()
+            return jsonify({"error": "Invalid credentials"}), 401
+
+        user_id, hashed_password = user_data
+
+        # Validate the password using Flask-Login's check_password_hash
+        if login_user(User(user_id), remember=True) and current_user.is_authenticated and \
+                current_user.check_password_hash(hashed_password, data['password']):
+            cursor.close()
+            return jsonify({"message": "Login successful"})
+        else:
+            # Incorrect password, return authentication failure status
+            logout_user()  # Logout in case of incorrect password
+            cursor.close()
+            return jsonify({"error": "Invalid credentials"}), 401
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    
+
 @app.route('/api/create_user', methods=['POST'])
 def create_user():
     try:
@@ -52,20 +125,41 @@ def create_user():
         cnx = mysql.connector.connect(**db_config)
         cursor = cnx.cursor()
 
-        query = """
+        # Check if the username already exists
+        existing_user_query = "SELECT ID FROM User WHERE Username = %s"
+        cursor.execute(existing_user_query, (data['Username'],))
+        existing_user = cursor.fetchone()
+
+        if existing_user:
+            cursor.close()
+            return jsonify({"error": "Username already exists. Please choose a different username."}), 400
+
+        # Insert the new user
+        insert_user_query = """
             INSERT INTO User (Username, Password, User_created, First_name, Last_name)
             VALUES (%s, %s, %s, %s, %s)
         """
 
-        cursor.execute(query, (data['Username'], data['Password'], datetime.utcnow(), data['First_name'], data['Last_name']))
-
+        cursor.execute(insert_user_query, (data['Username'], data['Password'], datetime.utcnow(), data['First_name'], data['Last_name']))
         cnx.commit()
+
+        # Log in the user after successful registration
+        user = User(cursor.lastrowid)  # Assuming lastrowid contains the ID of the newly created user
+        login_user(user)
+
         cursor.close()
 
         return jsonify({"message": "User created successfully"})
 
     except Exception as e:
         return jsonify({"error": str(e)})
+
+    
+@app.route('/api/logout', methods=['POST'])
+@login_required
+def logout():
+    logout_user()
+    return jsonify({"message": "Logged out successfully"})
     
 # Radio table route
 @app.route('/api/radio_questions', methods=['GET'])
@@ -116,7 +210,7 @@ def submit_checkbox_answers():
         cursor = cnx.cursor()
 
         for question_id, selected_values in data.items():
-            # Join selected values into a single string or format based on your needs
+            # Join selected values into a single string
             combined_values = ', '.join(selected_values)
 
             query = """
@@ -134,8 +228,7 @@ def submit_checkbox_answers():
     except Exception as e:
         return jsonify({"error": str(e)})
 
-    
-# Update the /api/user_data route in your Flask backend
+
 @app.route('/api/user_data', methods=['GET'])
 def get_user_data():
     try:
@@ -178,7 +271,7 @@ def get_user_answers():
             # User not found, return 404 status
             return jsonify({"error": "User not found"}), 404
 
-        # Assuming you have tables named Radio and Checkbox
+        # 
         query = """
             SELECT r.QuestionID, r.Value AS RadioAnswer, c.Value AS CheckboxAnswer
             FROM Radio r
