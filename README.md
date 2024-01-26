@@ -1,4 +1,4 @@
-# Tyopaja
+# Työpaja
 Repositorio Digitoimisto Aarghin toimeksiantamalle työpaja-projektille.
 
 
