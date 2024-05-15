@@ -10,6 +10,7 @@
 </template>
 
 <script>
+import DOMPurify from 'dompurify';
 import Home from './components/Home.vue';
 import About from './components/About.vue';
 import Search from './components/Search.vue';
@@ -18,12 +19,15 @@ import RadioQuestions from "./components/RadioQuestions.vue";
 import Checkbox from './components/Checkbox.vue'
 import SearchAnswers from './components/SearchAnswers.vue'
 import Login from './components/Login.vue';
+import PieChart from './components/Piechart.vue';
+import ShortText from './components/ShortText.vue';
+import QuestionAnswers from './components/Answers.vue';
 
 export default {
   data() {
     return {
       currentPage: 1,
-      totalPages: 8, // Adjust based on the total number of pages
+      totalPages: 11, // Adjust based on the total number of pages
     };
   },
   computed: {
@@ -45,6 +49,12 @@ export default {
           return SearchAnswers;
         case 8:
           return About;
+        case 9:
+          return PieChart;
+        case 10:
+          return ShortText;
+        case 11:
+          return QuestionAnswers;
         default:
           return Home;
       }
@@ -62,6 +72,10 @@ export default {
       }
     },
   },
+  mounted() {
+    // Example of sanitizing dynamic content using Dompurify
+    this.currentPageComponent = DOMPurify.sanitize(this.currentPageComponent);
+  }
 };
 </script>
 

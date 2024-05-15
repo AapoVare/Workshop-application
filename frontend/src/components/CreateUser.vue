@@ -20,6 +20,8 @@
 </template>
   
 <script>
+import DOMPurify from 'dompurify';
+
 export default {
   data() {
     return {
@@ -34,6 +36,14 @@ export default {
   },
   methods: {
     createUser() {
+      // Sanitize user input using Dompurify
+      const sanitizedFormData = {
+        Username: DOMPurify.sanitize(this.formData.Username),
+        Password: DOMPurify.sanitize(this.formData.Password),
+        First_name: DOMPurify.sanitize(this.formData.First_name),
+        Last_name: DOMPurify.sanitize(this.formData.Last_name),
+      };
+
       // Make a dummy request to the create_user endpoint to trigger CSRF token generation
       fetch('http://127.0.0.1:5000/api/create_user', {
         method: 'GET',
@@ -45,7 +55,7 @@ export default {
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify(this.formData),
+            body: JSON.stringify(sanitizedFormData),
           });
         })
         .then((response) => response.json())
@@ -62,11 +72,9 @@ export default {
           console.error('Error:', error);
         });
     },
-
   },
 };
 </script>
-
   
 <style>
 #app {
@@ -78,4 +86,3 @@ export default {
   margin-top: 60px;
 }
 </style>
-  

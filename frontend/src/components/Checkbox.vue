@@ -3,7 +3,7 @@
       <h2>Checkbox Questions</h2>
       <ul>
         <li v-for="(question, questionId) in questions" :key="questionId">
-          <strong>{{ question.question }}</strong>
+          <strong>{{ sanitize(question.question) }}</strong>
           <ul>
             <li v-for="(option, index) in question.options" :key="index">
               <input
@@ -12,7 +12,7 @@
                 :value="option"
                 v-model="selectedOptions[questionId]"
               />
-              <label :for="`question_${questionId}_option_${index}`">{{ option }}</label>
+              <label :for="`question_${questionId}_option_${index}`">{{ sanitize(option) }}</label>
             </li>
           </ul>
         </li>
@@ -22,6 +22,8 @@
 </template>
   
 <script>
+import DOMPurify from 'dompurify';
+
 export default {
   name: 'LP',
   data() {
@@ -32,9 +34,8 @@ export default {
   },
   watch: {
     questions: {
-      immediate: true, // Run the handler immediately on mount
+      immediate: true,
       handler(newQuestions) {
-        // Initialize selectedOptions with an empty array for each question
         this.selectedOptions = Object.fromEntries(
           Object.keys(newQuestions).map((questionId) => [questionId, []])
         );
@@ -66,7 +67,6 @@ export default {
         }
       });
 
-      // Now, you can send the answers to the backend using a fetch request
       fetch("http://127.0.0.1:5000/api/submit_checkbox_answers", {
         method: "POST",
         headers: {
@@ -76,23 +76,23 @@ export default {
       })
         .then((response) => response.json())
         .then((data) => {
-          // Handle the response from the backend if needed
           alert(data.message || data.error);
         })
         .catch((error) => {
           console.error("Error submitting answers:", error);
         });
 
-      // Optionally, emit an event to notify the parent component about the submission
       this.$emit("answers-submitted", answerData);
 
-      // Clear selected options after submission
       this.clearSelectedOptions();
     },
     clearSelectedOptions() {
       Object.keys(this.selectedOptions).forEach((questionID) => {
         this.selectedOptions[questionID] = [];
       });
+    },
+    sanitize(content) {
+      return DOMPurify.sanitize(content);
     },
   },
 };

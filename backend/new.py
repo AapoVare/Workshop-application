@@ -4,9 +4,6 @@ from mysql.connector import errorcode
 from datetime import datetime
 from flask_cors import CORS  # Import CORS
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from flask_wtf import CSRFProtect
-from flask_wtf.csrf import CSRFError
-from flask_wtf.csrf import generate_csrf
 from dotenv import load_dotenv
 import os
 import json
@@ -18,7 +15,6 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
-csrf = CSRFProtect(app)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
 # MySQL Configuration
@@ -121,8 +117,7 @@ def login():
 
     except Exception as e:
         return jsonify({"error": str(e)})
-    
-@csrf.exempt   
+       
 @app.route('/api/create_user', methods=['POST'])
 def create_user():
     try:
@@ -175,12 +170,48 @@ def get_radio_questions():
     from questions import radio_questions
     return jsonify(radio_questions)
 
+#Route to fetch all values from the radio table with the question ID of 1
+@app.route('/api/radio_data', methods=['GET'])
+def get_radio_data():
+    try:
+        cnx = mysql.connector.connect(**db_config)
+        cursor = cnx.cursor()
+
+        # Fetch data from the "Radio" table for question ID 1
+        query = "SELECT Value FROM Radio WHERE QuestionID = 1"
+        cursor.execute(query)
+        data = cursor.fetchall()
+
+        # Extract values from the fetched data
+        values = [row[0] for row in data]
+
+        cursor.close()
+
+        return jsonify(values)
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
 # Checkbox table route
 @app.route('/api/checkbox_questions', methods=['GET'])
 def get_checkbox_questions():
     # Fetch questions from a separate Python file (questions.py)
     from questions import checkbox_questions
     return jsonify(checkbox_questions)
+
+# Short text table route
+@app.route('/api/short_text_questions', methods=['GET'])
+def get_short_questions():
+    # Fetch questions from a separate Python file (questions.py)
+    from questions import short_text_questions
+    return jsonify(short_text_questions)
+
+# Long text table route
+@app.route('/api/long_text_questions', methods=['GET'])
+def get_long_questions():
+    # Fetch questions from a separate Python file (questions.py)
+    from questions import long_text_questions
+    return jsonify(long_text_questions)
 
 # Submit radio answers to the database
 @app.route('/api/submit_radio_answers', methods=['POST'])
@@ -234,10 +265,60 @@ def submit_checkbox_answers():
 
     except Exception as e:
         return jsonify({"error": str(e)})
+    
+# Submit short text answers to the database
+@app.route('/api/submit_short_text_answers', methods=['POST'])
+def submit_short_text_answers():
+    try:
+        data = request.get_json()
+
+        cnx = mysql.connector.connect(**db_config)
+        cursor = cnx.cursor()
+
+        for question_id, selected_values in data.items():
+
+            query = """
+                INSERT INTO Short_text (UserID, QuestionID, Value, Created, Version)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            
+            cursor.execute(query, (1, question_id, selected_values, datetime.utcnow(), 1)) #Replace first 1 with actual user ID, replace second 1 with actual version
+        cnx.commit()
+        cursor.close()
+
+        return jsonify({"message": "Short text answers submitted succesfully"})
+    
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    
+# Submit long text answers to the database
+@app.route('/api/submit_long_text_answers', methods=['POST'])
+def submit_long_text_answers():
+    try:
+        data = request.get_json()
+
+        cnx = mysql.connector.connect(**db_config)
+        cursor = cnx.cursor()
+
+        for question_id, selected_values in data.items():
+            combined_values = ', '.join(selected_values)
+
+            query = """
+                INSERT INTO Long_text (UserID, QuestionID, Value, Created, Version)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            
+            cursor.execute(query, (question_id, combined_values, datetime.utcnow(), 1))
+        cnx.commit()
+        cursor.close()
+
+        return jsonify({"message": "Long text answers submitted succesfully"})
+    
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 
 @app.route('/api/user_data', methods=['GET'])
-@csrf.exempt
 def get_user_data():
     try:
         cnx = mysql.connector.connect(**db_config)
@@ -264,7 +345,6 @@ def get_user_data():
         return jsonify({"error": str(e)})
 
 @app.route('/api/user_answers', methods=['GET'])
-@csrf.exempt
 def get_user_answers():
     try:
         username = request.args.get('username')
@@ -299,12 +379,30 @@ def get_user_answers():
 
     except Exception as e:
         return jsonify({"error": str(e)})
+    
+@app.route('/values', methods=['GET'])
+def get_values():
+    table = request.args.get('table')
+    question_id = request.args.get('questionId')
 
+    if not table or not question_id:
+        return jsonify({'error': 'Table name and Question ID are required.'}), 400
 
-@app.errorhandler(CSRFError)
-def handle_csrf_error(e):
-    return jsonify({"error": "CSRF token is missing or invalid"}), 400
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        query = f"SELECT Value FROM {table} WHERE QuestionID = %s"
+        cursor.execute(query, (question_id,))
+        results = cursor.fetchall()
+        values = [row[0] for row in results]
+        return jsonify(values)
+    except mysql.connector.Error as err:
+        print(f"Error: {err}")
+        return jsonify({'error': 'Error fetching values from database.'}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
 
 if __name__ == '__main__':
-    csrf.init_app(app)
     app.run(debug=True)

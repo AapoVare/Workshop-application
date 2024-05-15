@@ -27,8 +27,20 @@ checkbox_questions = {
     # Add more questions as needed
 }
 
+short_text_questions = {
+    4: {
+        "question": "What's your favorite meal?"
+    }
+}
 
-def print_question(question_id):
+long_text_questions = {
+    5: {
+        "question": "Write a short story about your favorite season and why."
+    }
+}
+
+
+""" def print_question(question_id):
     if question_id in radio_questions:
         question = radio_questions[question_id]["question"]
         options = radio_questions[question_id]["options"]
@@ -46,4 +58,4 @@ try:
     question_id = int(user_input)
     print_question(question_id)
 except ValueError:
-    print("Invalid input. Please enter a valid number.")
+    print("Invalid input. Please enter a valid number.") """
